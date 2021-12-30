@@ -1,0 +1,96 @@
+import requests # requests from API
+import json # use for uploading to a json
+from itertools import combinations # use to calculate combinations.
+import networkx as nx # use to create edges and graph
+from networkx.classes.function import path_weight
+import matplotlib.pyplot as plt
+
+
+#Declare all currencies and their codes. 
+currencies = [ "cardano","ripple", "bitcoin-cash","eos", "litecoin", "ethereum", "bitcoin"] # still do  "cardano"
+ids = ["ada","xrp", "bch","eos", "ltc", "eth", "btc"] # still do ada
+#set aliase to great a graph later
+g = nx.DiGraph()
+edges = [] #creat a list that will have tuples containing node,node, edge weight. 
+
+#create my URL so the for loop can access it for each crypto
+url1 = "https://api.coingecko.com/api/v3/simple/price?ids="
+url2 = "&vs_currencies="
+# create 2 for loops. For each coin, find the value pair to each coin. 
+for i in range(len(currencies)):
+    for j in range(len(currencies)):
+        url = url1+currencies[i] +","+currencies[j]+url2+ids[i]+","+ids[j]
+        key1 = currencies[i] #key 1 = currency name
+        key2 = ids[j] # key 2 is currency code to.
+        d = json.loads(requests.get(url).text) # upload the request to a dictionary i can use.
+        try: #try adding the from name, to name, and the exchange rate to a tuple in a list called edges.
+            edges.append((key1,currencies[j],d[key1][key2]))
+        except KeyError: # if there is an error with the key, continue without it. 
+            continue 
+#             if ids[i] != "ada":
+#                 #print(url)
+#                 rate = 1/d[currencies[j]][ids[i]] # find the exchange rate. assume a rate 1.
+#                 edges.append((key1,currencies[j],rate))
+#             else:
+#                 edges.append((key1,currencies[j],1))
+# print(edges)
+
+
+    
+# use the add weight function to get the weight at end of the tuple from list edges.    
+g.add_weighted_edges_from(edges) 
+
+
+greatest_weight = float("-inf") # set to - inf to create all answers higher
+greatest_path = []# set greatest path to this list. 
+lowest_weight = float("inf") # set to inf to create all answers lower
+lowest_path = []# set lowest path to this list. 
+all_paths = [] # create list to add data to the json.
+#run the analysis to calculate paths to find the highest rate. 
+for n1, n2 in combinations(g.nodes,2): # find all combinations for all nodes. 
+    print("paths from ", n1, "to", n2, "----------------------------------")
+    for path in nx.all_simple_paths(g, source=n1, target=n2):
+        path_weight_to = 1
+        try: # for every path that is found, 
+            for i in range(len(path)-1):# multiply the existing path weight to the new weight
+                path_weight_to *= g[path[i]][path[i+1]]["weight"]
+        except KeyError:#if there is a key error, continue
+            continue
+    # reverse the path to find the other way to it.    
+        path.reverse()
+        
+        path_weight_from = 1
+        try: # for every path that is found, find the total weight
+            for i in range(len(path)-1):# multiply the existing path weight to the new weight
+                path_weight_from *= g[path[i]][path[i+1]]["weight"]
+        except KeyError:#if there is a key error, continue #robustcode
+            continue
+        
+        path_weight_factor = path_weight_to * path_weight_from #find the total weight for the total loop.
+        all_paths.append((path,path_weight_to,path_weight_from,path_weight_factor)) # add this to the all_paths results.
+        print("path weight factor for path",path,": ",path_weight_factor)
+    #find the highest and lowest weights. set those variables.
+        if path_weight_factor > greatest_weight:
+            greatest_weight = path_weight_factor
+            greatest_path = path
+        if path_weight_factor < lowest_weight:
+            lowest_weight = path_weight_factor
+            lowest_path = path
+
+#upload results to an outfile.    
+out_file = open("HW4/CryptoPaths.json", "w+")
+json.dump(all_paths,out_file, indent = 4)  
+
+#output the results to the console.
+print("\nlowest path", lowest_path, "at weight: ", lowest_weight)
+print("\ngreatest path",greatest_path, "at weight: ", greatest_weight)
+
+# upload the tuples found in list edges to a graph visualization. 
+pos=nx.circular_layout(g) # pos = nx.nx_agraph.graphviz_layout(G)
+nx.draw_networkx(g,pos)
+labels = nx.get_edge_attributes(g,'weight')
+nx.draw_networkx_edge_labels(g,pos,edge_labels=labels)
+
+#plt.savefig("cryptograph.png")
+
+input(0)
